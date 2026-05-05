@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
     SafeAreaView,
     View,
@@ -7,11 +7,15 @@ import {
     FlatList,
     Pressable,
     StyleSheet,
+    ActivityIndicator,
 } from "react-native";
 import MiniSearch from "minisearch";
-import rawData from "../data/Baza-znanii_Лист1.json";
+import Papa from "papaparse";
 import { useTheme } from "../components/ThemeContext";
 import { getAppTheme } from "../components/appTheme";
+
+const GOOGLE_SHEET_CSV_URL =
+    "https://docs.google.com/spreadsheets/d/16IkNcwN_ppdaoOAMkoJyiNaqgHpXeNYX6NQvHYmNLuU/export?format=csv&gid=0";
 
 function normalizeText(text = "") {
     return String(text || "")
@@ -80,9 +84,60 @@ function prepareDocuments(list) {
 export default function SearchScreen() {
     const { theme } = useTheme();
     const palette = getAppTheme(theme);
-    const [query, setQuery] = useState("");
 
-    const documents = useMemo(() => prepareDocuments(rawData), []);
+    const [query, setQuery] = useState("");
+    const [rawData, setRawData] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        let isMounted = true;
+
+        async function loadGoogleSheet() {
+            try {
+                setLoading(true);
+                setError("");
+
+                const response = await fetch(GOOGLE_SHEET_CSV_URL);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error: ${response.status}`);
+                }
+
+                const csvText = await response.text();
+
+                const parsed = Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true,
+                });
+
+                if (parsed.errors?.length) {
+                    console.warn("CSV parse warnings:", parsed.errors);
+                }
+
+                if (isMounted) {
+                    setRawData(Array.isArray(parsed.data) ? parsed.data : []);
+                }
+            } catch (err) {
+                console.error("Google Sheets load error:", err);
+                if (isMounted) {
+                    setError("Не удалось загрузить данные из Google Sheets");
+                }
+            } finally {
+                if (isMounted) {
+                    setLoading(false);
+                }
+            }
+        }
+
+        loadGoogleSheet();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
+    const documents = useMemo(() => prepareDocuments(rawData), [rawData]);
 
     const miniSearch = useMemo(() => {
         const ms = new MiniSearch({
@@ -136,6 +191,7 @@ export default function SearchScreen() {
 
     const suggestions = useMemo(() => {
         if (!normalizedQuery) return [];
+
         return miniSearch
             .autoSuggest(normalizedQuery, {
                 prefix: true,
@@ -316,6 +372,43 @@ export default function SearchScreen() {
         </View>
     );
 
+    if (loading) {
+        return (
+            <SafeAreaView
+                style={[styles.safe, { backgroundColor: palette.background }]}
+            >
+                <View style={[styles.container, styles.centered]}>
+                    <ActivityIndicator size="large" color={palette.primary} />
+                    <Text
+                        style={[
+                            styles.loadingText,
+                            { color: palette.textMuted },
+                        ]}
+                    >
+                        Загрузка данных...
+                    </Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    if (error) {
+        return (
+            <SafeAreaView
+                style={[styles.safe, { backgroundColor: palette.background }]}
+            >
+                <View style={[styles.container, styles.centered]}>
+                    <Text style={[styles.emptyTitle, { color: palette.text }]}>
+                        Ошибка загрузки
+                    </Text>
+                    <Text style={[styles.emptyText, { color: palette.textMuted }]}>
+                        {error}
+                    </Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
     return (
         <SafeAreaView
             style={[styles.safe, { backgroundColor: palette.background }]}
@@ -434,6 +527,7 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
     safe: { flex: 1 },
     container: { flex: 1, paddingHorizontal: 16, paddingTop: 20 },
+    centered: { justifyContent: "center", alignItems: "center" },
     title: { fontSize: 28, fontWeight: "700", marginBottom: 6 },
     subtitle: { fontSize: 14, marginBottom: 16, lineHeight: 20 },
     input: {
@@ -443,6 +537,10 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         fontSize: 16,
         marginBottom: 12,
+    },
+    loadingText: {
+        fontSize: 14,
+        marginTop: 12,
     },
     suggestionsBox: {
         borderRadius: 14,
@@ -544,9 +642,11 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: "700",
         marginBottom: 6,
+        textAlign: "center",
     },
     emptyText: {
         fontSize: 14,
         lineHeight: 20,
+        textAlign: "center",
     },
 });

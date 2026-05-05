@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
     View,
     Text,
@@ -7,11 +7,15 @@ import {
     TextInput,
     ScrollView,
     Modal,
+    ActivityIndicator,
 } from "react-native";
 import { Calendar } from "react-native-calendars";
+import Papa from "papaparse";
 import { useTheme } from "../components/ThemeContext";
-import rawDates from "../data/date.json";
 import { getAppTheme } from "../components/appTheme";
+
+const GOOGLE_SHEET_DATES_CSV_URL =
+    "https://docs.google.com/spreadsheets/d/16IkNcwN_ppdaoOAMkoJyiNaqgHpXeNYX6NQvHYmNLuU/export?format=csv&gid=1861990274";
 
 function pad(value) {
     return String(value).padStart(2, "0");
@@ -53,9 +57,9 @@ function normalizeEvents(data) {
 function getTagColor(tag, palette) {
     const normalized = String(tag).toLowerCase();
 
-    if (normalized.includes("лк")) return palette.primary;
-    if (normalized.includes("пр")) return palette.success;
-    if (normalized.includes("лаб")) return palette.purple;
+    if (normalized.includes("вуз")) return palette.primary;
+    if (normalized.includes("спо")) return palette.success;
+    if (normalized.includes("екц")) return palette.purple;
     if (normalized.includes("встреч")) return palette.warning;
 
     return palette.primary;
@@ -65,15 +69,18 @@ export default function CalendarScreen() {
     const { theme } = useTheme();
     const palette = getAppTheme(theme);
 
-    const initialEvents = useMemo(() => normalizeEvents(rawDates), []);
+    const [serverEvents, setServerEvents] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState("");
+
     const [customEvents, setCustomEvents] = useState([]);
-    const [selectedDate, setSelectedDate] = useState(
-        initialEvents[0]?.dateKey ||
-            toDateKey(
-                new Date().getDate(),
-                new Date().getMonth() + 1,
-                new Date().getFullYear(),
-            ),
+
+    const [selectedDate, setSelectedDate] = useState(() =>
+        toDateKey(
+            new Date().getDate(),
+            new Date().getMonth() + 1,
+            new Date().getFullYear(),
+        ),
     );
 
     const [visibleMonth, setVisibleMonth] = useState(selectedDate);
@@ -85,9 +92,66 @@ export default function CalendarScreen() {
     const [formEvent, setFormEvent] = useState("");
     const [formTag, setFormTag] = useState("");
 
+    useEffect(() => {
+        let isMounted = true;
+
+        async function loadGoogleSheetDates() {
+            try {
+                setLoading(true);
+                setLoadError("");
+
+                const response = await fetch(GOOGLE_SHEET_DATES_CSV_URL);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error: ${response.status}`);
+                }
+
+                const csvText = await response.text();
+
+                const parsed = Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true,
+                });
+
+                if (parsed.errors?.length) {
+                    console.warn("CSV parse warnings:", parsed.errors);
+                }
+
+                const normalized = normalizeEvents(
+                    Array.isArray(parsed.data) ? parsed.data : [],
+                );
+
+                if (isMounted) {
+                    setServerEvents(normalized);
+
+                    if (normalized.length > 0) {
+                        setSelectedDate(normalized[0].dateKey);
+                        setVisibleMonth(normalized[0].dateKey);
+                    }
+                }
+            } catch (error) {
+                console.error("Calendar Google Sheets load error:", error);
+
+                if (isMounted) {
+                    setLoadError("Не удалось загрузить календарь из Google Sheets");
+                }
+            } finally {
+                if (isMounted) {
+                    setLoading(false);
+                }
+            }
+        }
+
+        loadGoogleSheetDates();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
     const allEvents = useMemo(
-        () => [...initialEvents, ...customEvents],
-        [initialEvents, customEvents],
+        () => [...serverEvents, ...customEvents],
+        [serverEvents, customEvents],
     );
 
     const groupedEvents = useMemo(() => {
@@ -199,6 +263,30 @@ export default function CalendarScreen() {
             },
         },
     };
+
+    if (loading) {
+        return (
+            <View style={[styles.loadingScreen, { backgroundColor: palette.background }]}>
+                <ActivityIndicator size="large" color={palette.primary} />
+                <Text style={[styles.loadingText, { color: palette.textMuted }]}>
+                    Загрузка календаря...
+                </Text>
+            </View>
+        );
+    }
+
+    if (loadError) {
+        return (
+            <View style={[styles.loadingScreen, { backgroundColor: palette.background }]}>
+                <Text style={[styles.emptyTitle, { color: palette.text }]}>
+                    Ошибка загрузки
+                </Text>
+                <Text style={[styles.emptyText, { color: palette.textMuted }]}>
+                    {loadError}
+                </Text>
+            </View>
+        );
+    }
 
     return (
         <>
@@ -574,6 +662,16 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
     screen: { flex: 1 },
     screenContent: { padding: 20, paddingBottom: 110 },
+    loadingScreen: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 20,
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 14,
+    },
     pageCaption: { fontSize: 16, marginBottom: 14, marginLeft: 4 },
     wrapper: { borderRadius: 22, padding: 20, borderWidth: 1 },
     title: { fontSize: 24, fontWeight: "700", marginBottom: 18 },
