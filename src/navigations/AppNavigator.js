@@ -5,16 +5,14 @@ import {
 } from "@react-navigation/drawer";
 import HomeScreen from "../pages/HomePage";
 import SearchScreen from "../pages/SearchPage";
-import CalendarScreen from "../pages/CalendarPage";
 import { useTheme } from "../components/ThemeContext";
-import { View, Text, StyleSheet, Switch, Pressable } from "react-native";
+import { View, Text, StyleSheet, Switch, Pressable, TouchableOpacity } from "react-native";
 
 const Drawer = createDrawerNavigator();
 
 const menuItems = [
     { label: "Главная", route: "Home", icon: "⌂" },
-    { label: "Поиск", route: "Search", icon: "⌕" },
-    { label: "Календарь", route: "Calendar", icon: "◫" },
+    { label: "Поиск ответов", route: "Search", icon: "⌕" },
 ];
 
 export const CustomDrawerContent = (props) => {
@@ -52,16 +50,18 @@ export const CustomDrawerContent = (props) => {
                     },
                 ]}
             >
-                <View
-                    style={[
-                        styles.logoBox,
-                        { backgroundColor: colors.cardSoft },
-                    ]}
-                >
-                    <Text style={[styles.logoText, { color: colors.accent }]}>
-                        ЕКЦ
-                    </Text>
-                </View>
+                <TouchableOpacity>
+                    <View
+                        style={[
+                            styles.logoBox,
+                            { backgroundColor: colors.cardSoft },
+                        ]}
+                    >
+                        <Text style={[styles.logoText, { color: colors.accent }]}>
+                            ЕКЦ
+                        </Text>
+                    </View>
+                </TouchableOpacity>
 
                 <Text style={[styles.appTitle, { color: colors.text }]}>
                     Контакт-центр
@@ -212,11 +212,6 @@ export function AppNavigator() {
                 name="Search"
                 component={SearchScreen}
                 options={{ title: "Поиск" }}
-            />
-            <Drawer.Screen
-                name="Calendar"
-                component={CalendarScreen}
-                options={{ title: "Календарь" }}
             />
         </Drawer.Navigator>
     );
