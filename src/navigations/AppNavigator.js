@@ -97,8 +97,8 @@ export const CustomDrawerContent = (props) => {
                                     backgroundColor: active
                                         ? colors.activeBg
                                         : pressed
-                                          ? colors.cardSoft
-                                          : "transparent",
+                                        ? colors.cardSoft
+                                        : "transparent",
                                     borderColor: active
                                         ? colors.activeBg
                                         : "transparent",
