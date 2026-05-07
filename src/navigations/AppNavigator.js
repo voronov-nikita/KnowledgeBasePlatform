@@ -204,14 +204,14 @@ export function AppNavigator() {
             }}
         >
             <Drawer.Screen
-                name="Home"
-                component={HomeScreen}
-                options={{ title: "Главная" }}
-            />
-            <Drawer.Screen
                 name="Search"
                 component={SearchScreen}
                 options={{ title: "Поиск" }}
+            />
+            <Drawer.Screen
+                name="Home"
+                component={HomeScreen}
+                options={{ title: "Главная" }}
             />
         </Drawer.Navigator>
     );
