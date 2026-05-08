@@ -23,7 +23,9 @@
     "react-native-calendars": "^1.1314.0",
     "react-native-safe-area-context": "^5.7.0",
     "react-native-screens": "^4.24.0",
-    "react-native-web": "^0.21.0"
+    "react-native-web": "^0.21.0",
+    "react-native-webview": "^13.16.1",
+    "xlsx": "^0.18.5"
   },
   "private": true
 }

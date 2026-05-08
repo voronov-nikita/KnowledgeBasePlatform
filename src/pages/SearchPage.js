@@ -8,11 +8,16 @@ import {
     Pressable,
     StyleSheet,
     ActivityIndicator,
+    Alert,
+    Platform,
+    ScrollView,
 } from "react-native";
 import MiniSearch from "minisearch";
 import Papa from "papaparse";
+import * as XLSX from "xlsx";
 import { useTheme } from "../components/ThemeContext";
 import { getAppTheme } from "../components/appTheme";
+import fallbackJsonData from "../data/BZ.json";
 
 const GOOGLE_SHEET_CSV_URL =
     "https://docs.google.com/spreadsheets/d/16IkNcwN_ppdaoOAMkoJyiNaqgHpXeNYX6NQvHYmNLuU/export?format=csv&gid=0";
@@ -81,7 +86,7 @@ function prepareDocuments(list) {
         });
 }
 
-export default function SearchScreen() {
+export default function SearchPage() {
     const { theme } = useTheme();
     const palette = getAppTheme(theme);
 
@@ -89,39 +94,72 @@ export default function SearchScreen() {
     const [rawData, setRawData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [fallbackWarning, setFallbackWarning] = useState("");
 
     useEffect(() => {
         let isMounted = true;
 
-        async function loadGoogleSheet() {
+        async function loadData() {
             try {
                 setLoading(true);
                 setError("");
+                setFallbackWarning("");
 
-                const response = await fetch(GOOGLE_SHEET_CSV_URL);
+                try {
+                    const response = await fetch(GOOGLE_SHEET_CSV_URL);
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error: ${response.status}`);
-                }
+                    if (!response.ok) {
+                        throw new Error(`HTTP error: ${response.status}`);
+                    }
 
-                const csvText = await response.text();
+                    const csvText = await response.text();
 
-                const parsed = Papa.parse(csvText, {
-                    header: true,
-                    skipEmptyLines: true,
-                });
+                    const parsed = Papa.parse(csvText, {
+                        header: true,
+                        skipEmptyLines: true,
+                    });
 
-                if (parsed.errors?.length) {
-                    console.warn("CSV parse warnings:", parsed.errors);
-                }
+                    if (parsed.errors?.length) {
+                        console.warn("CSV parse warnings:", parsed.errors);
+                    }
 
-                if (isMounted) {
-                    setRawData(Array.isArray(parsed.data) ? parsed.data : []);
+                    const rows = Array.isArray(parsed.data) ? parsed.data : [];
+
+                    if (!rows.length) {
+                        throw new Error("Google Sheets returned empty data");
+                    }
+
+                    if (isMounted) {
+                        setRawData(rows);
+                    }
+                } catch (googleError) {
+                    console.warn(
+                        "Google Sheets load failed, using local JSON:",
+                        googleError,
+                    );
+
+                    const jsonData = Array.isArray(fallbackJsonData)
+                        ? fallbackJsonData
+                        : [];
+
+                    if (!jsonData.length) {
+                        throw new Error("Fallback JSON is empty");
+                    }
+
+                    if (isMounted) {
+                        setRawData(jsonData);
+                        setFallbackWarning(
+                            "Не удалось загрузить актуальные данные из Google Sheets. Показана локальная версия из JSON, данные могут быть устаревшими.",
+                        );
+                    }
                 }
             } catch (err) {
-                console.error("Google Sheets load error:", err);
+                console.error("Data load error:", err);
+
                 if (isMounted) {
-                    setError("Не удалось загрузить данные из Google Sheets");
+                    setError(
+                        "Не удалось загрузить данные ни из Google Sheets, ни из локального JSON",
+                    );
                 }
             } finally {
                 if (isMounted) {
@@ -130,7 +168,7 @@ export default function SearchScreen() {
             }
         }
 
-        loadGoogleSheet();
+        loadData();
 
         return () => {
             isMounted = false;
@@ -197,7 +235,7 @@ export default function SearchScreen() {
                 prefix: true,
                 fuzzy: 0.2,
             })
-            .slice(0, 5);
+            .slice(0, 3);
     }, [normalizedQuery, miniSearch]);
 
     const results = useMemo(() => {
@@ -228,12 +266,46 @@ export default function SearchScreen() {
         }));
     }, [normalizedQuery, miniSearch, documents]);
 
+    const handleExportExcel = () => {
+        try {
+            const exportData = documents.map((item) => ({
+                Заявитель: item.applicant ?? "",
+                Тематика: item.topic ?? "",
+                Подтематика: item.subtopic ?? "",
+                Вопрос: item.question ?? "",
+                Отвечает: item.responder ?? "",
+                "Ответ для первой линии поддержки": item.answer ?? "",
+                Комментарий: item.comment ?? "",
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "BZ база");
+
+            XLSX.writeFile(workbook, "bz-knowledge-base.xlsx");
+
+            if (Platform.OS !== "web") {
+                Alert.alert(
+                    "Экспорт",
+                    "Excel-файл подготовлен. На некоторых платформах может потребоваться дополнительная поддержка файловой системы.",
+                );
+            }
+        } catch (err) {
+            console.error("Excel export error:", err);
+            Alert.alert("Ошибка", "Не удалось выгрузить Excel");
+        }
+    };
+
     const renderSuggestion = ({ item }) => (
         <Pressable
             style={[styles.suggestionItem, { borderTopColor: palette.border }]}
             onPress={() => setQuery(item.suggestion)}
         >
-            <Text style={[styles.suggestionText, { color: palette.text }]}>
+            <Text
+                style={[styles.suggestionText, { color: palette.text }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+            >
                 {item.suggestion}
             </Text>
         </Pressable>
@@ -401,7 +473,9 @@ export default function SearchScreen() {
                     <Text style={[styles.emptyTitle, { color: palette.text }]}>
                         Ошибка загрузки
                     </Text>
-                    <Text style={[styles.emptyText, { color: palette.textMuted }]}>
+                    <Text
+                        style={[styles.emptyText, { color: palette.textMuted }]}
+                    >
                         {error}
                     </Text>
                 </View>
@@ -414,14 +488,35 @@ export default function SearchScreen() {
             style={[styles.safe, { backgroundColor: palette.background }]}
         >
             <View style={styles.container}>
-                <Text style={[styles.title, { color: palette.text }]}>
-                    Поиск по базе BZ
-                </Text>
+                <View
+                    style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                    }}
+                >
+                    <Text style={[styles.title, { color: palette.text }]}>
+                        Поиск по базе знаний
+                    </Text>
 
-                <Text style={[styles.subtitle, { color: palette.textMuted }]}>
-                    Поиск по вопросам, ответам, тематикам и подтематикам с
-                    учетом опечаток
-                </Text>
+                    <Pressable
+                        onPress={handleExportExcel}
+                        style={({ pressed }) => [
+                            styles.exportButtonSmall,
+                            {
+                                borderColor: "#16a34a",
+                                backgroundColor: pressed
+                                    ? "rgba(22, 163, 74, 0.18)"
+                                    : "rgba(22, 163, 74, 0.10)",
+                                opacity: pressed ? 0.9 : 1,
+                            },
+                        ]}
+                    >
+                        <Text style={styles.exportButtonSmallText}>
+                            Выгрузка в Excel
+                        </Text>
+                    </Pressable>
+                </View>
 
                 <TextInput
                     value={query}
@@ -440,59 +535,33 @@ export default function SearchScreen() {
                     autoCorrect={false}
                 />
 
-                {!!normalizedQuery && suggestions.length > 0 && (
+                {!!fallbackWarning && (
                     <View
                         style={[
-                            styles.suggestionsBox,
+                            styles.warningBox,
                             {
-                                backgroundColor: palette.surface,
-                                borderColor: palette.border,
+                                backgroundColor:
+                                    theme === "light" ? "#fff7ed" : "#3a2a12",
+                                borderColor: "#f59e0b",
                             },
                         ]}
                     >
                         <Text
                             style={[
-                                styles.suggestionsTitle,
-                                { color: palette.primary },
+                                styles.warningText,
+                                { color: palette.text },
                             ]}
                         >
-                            Подсказки
+                            {fallbackWarning}
                         </Text>
-
-                        <FlatList
-                            data={suggestions}
-                            keyExtractor={(item, index) =>
-                                `${item.suggestion}-${index}`
-                            }
-                            renderItem={renderSuggestion}
-                            keyboardShouldPersistTaps="handled"
-                        />
                     </View>
                 )}
 
-                <View style={styles.resultsHeader}>
-                    <Text
-                        style={[
-                            styles.resultsTitle,
-                            { color: palette.textSecondary },
-                        ]}
-                    >
-                        {normalizedQuery
-                            ? `Найдено: ${results.length}`
-                            : `Всего записей: ${documents.length}`}
-                    </Text>
-                </View>
-
-                <FlatList
-                    data={results}
-                    keyExtractor={(item) => String(item.id)}
-                    renderItem={renderResult}
-                    keyboardShouldPersistTaps="handled"
-                    contentContainerStyle={styles.listContent}
-                    ListEmptyComponent={
+                <ScrollView>
+                    {!!normalizedQuery && suggestions.length > 0 && (
                         <View
                             style={[
-                                styles.emptyBox,
+                                styles.suggestionsBox,
                                 {
                                     backgroundColor: palette.surface,
                                     borderColor: palette.border,
@@ -501,24 +570,77 @@ export default function SearchScreen() {
                         >
                             <Text
                                 style={[
-                                    styles.emptyTitle,
-                                    { color: palette.text },
+                                    styles.suggestionsTitle,
+                                    { color: palette.primary },
                                 ]}
                             >
-                                Ничего не найдено
+                                Подсказки
                             </Text>
-                            <Text
-                                style={[
-                                    styles.emptyText,
-                                    { color: palette.textMuted },
-                                ]}
-                            >
-                                Попробуйте другой запрос или выберите подсказку
-                                выше
-                            </Text>
+
+                            <FlatList
+                                data={suggestions}
+                                keyExtractor={(item, index) =>
+                                    `${item.suggestion}-${index}`
+                                }
+                                renderItem={renderSuggestion}
+                                keyboardShouldPersistTaps="handled"
+                                nestedScrollEnabled
+                                style={styles.suggestionsList}
+                                showsVerticalScrollIndicator
+                            />
                         </View>
-                    }
-                />
+                    )}
+
+                    <View style={styles.resultsHeader}>
+                        <Text
+                            style={[
+                                styles.resultsTitle,
+                                { color: palette.textSecondary },
+                            ]}
+                        >
+                            {normalizedQuery
+                                ? `Найдено: ${results.length}`
+                                : `Всего записей: ${documents.length}`}
+                        </Text>
+                    </View>
+
+                    <FlatList
+                        data={results}
+                        keyExtractor={(item) => String(item.id)}
+                        renderItem={renderResult}
+                        keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={styles.listContent}
+                        ListEmptyComponent={
+                            <View
+                                style={[
+                                    styles.emptyBox,
+                                    {
+                                        backgroundColor: palette.surface,
+                                        borderColor: palette.border,
+                                    },
+                                ]}
+                            >
+                                <Text
+                                    style={[
+                                        styles.emptyTitle,
+                                        { color: palette.text },
+                                    ]}
+                                >
+                                    Ничего не найдено
+                                </Text>
+                                <Text
+                                    style={[
+                                        styles.emptyText,
+                                        { color: palette.textMuted },
+                                    ]}
+                                >
+                                    Попробуйте другой запрос или выберите
+                                    подсказку выше
+                                </Text>
+                            </View>
+                        }
+                    />
+                </ScrollView>
             </View>
         </SafeAreaView>
     );
@@ -528,8 +650,48 @@ const styles = StyleSheet.create({
     safe: { flex: 1 },
     container: { flex: 1, paddingHorizontal: 16, paddingTop: 20 },
     centered: { justifyContent: "center", alignItems: "center" },
-    title: { fontSize: 28, fontWeight: "700", marginBottom: 6 },
-    subtitle: { fontSize: 14, marginBottom: 16, lineHeight: 20 },
+
+    title: {
+        fontSize: 28,
+        fontWeight: "700",
+        marginBottom: 6,
+    },
+    subtitle: {
+        fontSize: 14,
+        marginBottom: 16,
+        lineHeight: 20,
+    },
+
+    actionsRow: {
+        justifyContent: "flex-right",
+        marginBottom: 12,
+    },
+
+    exportButtonSmall: {
+        minWidth: 92,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 6,
+        borderWidth: 1.5,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+
+    exportButtonSmallText: {
+        color: "#16a34a",
+        fontSize: 13,
+        fontWeight: "800",
+        letterSpacing: 0.2,
+    },
+    exportButton: {
+        backgroundColor: "#16a34a",
+    },
+    actionButtonText: {
+        color: "#fff",
+        fontSize: 14,
+        fontWeight: "700",
+    },
+
     input: {
         borderWidth: 1,
         borderRadius: 14,
@@ -538,10 +700,24 @@ const styles = StyleSheet.create({
         fontSize: 16,
         marginBottom: 12,
     },
+
     loadingText: {
         fontSize: 14,
         marginTop: 12,
     },
+
+    warningBox: {
+        borderWidth: 1,
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        marginBottom: 12,
+    },
+    warningText: {
+        fontSize: 13,
+        lineHeight: 18,
+    },
+
     suggestionsBox: {
         borderRadius: 14,
         borderWidth: 1,
@@ -555,6 +731,9 @@ const styles = StyleSheet.create({
         paddingTop: 12,
         paddingBottom: 6,
     },
+    suggestionsList: {
+        maxHeight: 132,
+    },
     suggestionItem: {
         paddingHorizontal: 12,
         paddingVertical: 10,
@@ -563,12 +742,19 @@ const styles = StyleSheet.create({
     suggestionText: {
         fontSize: 14,
     },
-    resultsHeader: { marginBottom: 10 },
+
+    resultsHeader: {
+        marginBottom: 10,
+    },
     resultsTitle: {
         fontSize: 14,
         fontWeight: "600",
     },
-    listContent: { paddingBottom: 24 },
+
+    listContent: {
+        paddingBottom: 24,
+    },
+
     card: {
         borderRadius: 16,
         borderWidth: 1,
@@ -633,6 +819,7 @@ const styles = StyleSheet.create({
         fontSize: 12,
         marginTop: 8,
     },
+
     emptyBox: {
         borderRadius: 14,
         padding: 20,
