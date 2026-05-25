@@ -5,6 +5,7 @@ import {
 } from "@react-navigation/drawer";
 import HomeScreen from "../pages/HomePage";
 import SearchScreen from "../pages/SearchPage";
+import PriemScreen from "../pages/PriemPage";
 import { useTheme } from "../components/ThemeContext";
 import { View, Text, StyleSheet, Switch, Pressable, TouchableOpacity } from "react-native";
 
@@ -13,6 +14,7 @@ const Drawer = createDrawerNavigator();
 const menuItems = [
     { label: "Главная", route: "Home", icon: "⌂" },
     { label: "Поиск ответов", route: "Search", icon: "⌕" },
+    { label: "Поиск контактов", route: "Priem", icon: "☎" },
 ];
 
 export const CustomDrawerContent = (props) => {
@@ -212,6 +214,11 @@ export function AppNavigator() {
                 name="Home"
                 component={HomeScreen}
                 options={{ title: "Главная" }}
+            />
+            <Drawer.Screen
+                name="Priem"
+                component={PriemScreen}
+                options={{ title: "Контакты приемный комиссий" }}
             />
         </Drawer.Navigator>
     );
