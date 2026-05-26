@@ -20,9 +20,7 @@ import { useTheme } from "../components/ThemeContext";
 import { getAppTheme } from "../components/appTheme";
 import fallbackJsonData from "../data/organizations.json";
 
-/* =========================
-   COPY TO CLIPBOARD
-========================= */
+
 async function copyToClipboard(value, label = "Скопировано") {
     if (!value) return;
 
@@ -231,9 +229,6 @@ export default function OrganizationsSearchPage() {
         [query]
     );
 
-    /* =========================
-       UNIQUE FILTER VALUES
-    ========================= */
     const regions = useMemo(() => {
         return [...new Set(documents.map((x) => x.region).filter(Boolean))].sort();
     }, [documents]);
@@ -242,9 +237,6 @@ export default function OrganizationsSearchPage() {
         return [...new Set(documents.map((x) => x.city).filter(Boolean))].sort();
     }, [documents]);
 
-    /* =========================
-       RESULTS (REPLACED)
-    ========================= */
     const results = useMemo(() => {
         let filtered = documents;
 
@@ -291,11 +283,11 @@ export default function OrganizationsSearchPage() {
         try {
             const exportData = documents.map((item) => ({
                 Учредитель: item.founder,
-                "ID ИАС": item.iasId,
+                // "ID ИАС": item.iasId,
                 "Наименование организации": item.organization,
-                ОГРН: item.ogrn,
+                // ОГРН: item.ogrn,
                 "Тип организации": item.orgType,
-                "Федеральный округ": item.district,
+                // "Федеральный округ": item.district,
                 Регион: item.region,
                 Город: item.city,
                 Адрес: item.address,
@@ -361,8 +353,8 @@ export default function OrganizationsSearchPage() {
 
             <View style={styles.infoBox}>
                 <InfoRow label="Учредитель" value={item.founder} palette={palette} />
-                <InfoRow label="ID ИАС" value={item.iasId} palette={palette} />
-                <InfoRow label="ОГРН" value={item.ogrn} palette={palette} />
+                {/* <InfoRow label="ID ИАС" value={item.iasId} palette={palette} /> */}
+                {/* <InfoRow label="ОГРН" value={item.ogrn} palette={palette} /> */}
                 <InfoRow label="Федеральный округ" value={item.district} palette={palette} />
                 <InfoRow label="Город" value={item.city} palette={palette} />
                 <InfoRow label="Адрес" value={item.address} palette={palette} />
