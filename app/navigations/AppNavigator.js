@@ -4,17 +4,26 @@ import {
     DrawerContentScrollView,
 } from "@react-navigation/drawer";
 import HomeScreen from "../pages/HomePage";
+import { AuthScreen } from "../pages/AuthPage";
 import SearchScreen from "../pages/SearchPage";
 import PriemScreen from "../pages/PriemPage";
 import { useTheme } from "../components/ThemeContext";
+
+import TestsScreen from "../pages/TestsPage";
+import TestHomeScreen from "../pages/TestHomePage";
+
 import { View, Text, StyleSheet, Switch, Pressable, TouchableOpacity } from "react-native";
+import FileScreen from "../pages/FilePage";
 
 const Drawer = createDrawerNavigator();
 
 const menuItems = [
-    { label: "Главная", route: "Home", icon: "⌂" },
-    { label: "Поиск ответов", route: "Search", icon: "⌕" },
-    { label: "Поиск контактов", route: "Priem", icon: "☎" },
+    { label: "Главная", route: "Home", icon: "🏠" },
+    { label: "Поиск ответов", route: "Search", icon: "🔎" },
+    { label: "Поиск контактов", route: "Priem", icon: "📞" },
+    { label: "Поиск по файлам", route: "File", icon: "📎" },
+    { label: "Тесты", route: "TestHome", icon: "📕" },
+    // { label: "Показатели", route: "Dashboard", icon: "📈" },
 ];
 
 export const CustomDrawerContent = (props) => {
@@ -206,6 +215,16 @@ export function AppNavigator() {
             }}
         >
             <Drawer.Screen
+                name="Auth"
+                component={AuthScreen}
+                options={{ headerShown: false }}
+            />
+            <Drawer.Screen
+                name="File"
+                component={FileScreen}
+                options={{ title: "Поиск по файлам" }}
+            />
+            <Drawer.Screen
                 name="Search"
                 component={SearchScreen}
                 options={{ title: "Поиск" }}
@@ -219,6 +238,16 @@ export function AppNavigator() {
                 name="Priem"
                 component={PriemScreen}
                 options={{ title: "Контакты приемный комиссий" }}
+            />
+            <Drawer.Screen
+                name="TestHome"
+                component={TestHomeScreen}
+                options={{ title: "Система оценивания знаний" }}
+            />
+            <Drawer.Screen
+                name="Test"
+                component={TestsScreen}
+                options={{ title: "Система оценивания знаний" }}
             />
         </Drawer.Navigator>
     );
